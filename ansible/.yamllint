@@ -1,0 +1,6 @@
+---
+# ansible-lint runs with this directory as its project root, so it does not
+# discover the .yamllint at the repository root. Inherit from it here rather
+# than letting ansible-lint fall back to stock yamllint defaults, which would
+# flag the deliberate column alignment in group_vars/all.yml.
+extends: ../.yamllint

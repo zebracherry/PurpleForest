@@ -26,8 +26,8 @@
     data: 1
     type: dword
   when: disable_defender | bool
-  notify: reboot windows
+  notify: Reboot windows
 
 - name: Set the timezone so event timestamps line up with the SIEM
-  community.windows.win_timezone:
+  ansible.windows.win_timezone:
     timezone: "UTC"

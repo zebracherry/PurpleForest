@@ -25,18 +25,18 @@
 - name: Check whether Sysmon is already installed
   ansible.windows.win_service_info:
     name: Sysmon64
-  register: sysmon_svc
+  register: telemetry_sysmon_svc
   failed_when: false
 
 - name: Install Sysmon
   ansible.windows.win_shell: |
     C:\lab\telemetry\sysmon\Sysmon64.exe -accepteula -i C:\lab\telemetry\sysmonconfig.xml
-  when: not (sysmon_svc.services | default([]) | length > 0)
+  when: not (telemetry_sysmon_svc.services | default([]) | length > 0)
 
 - name: Update the Sysmon config if it is already installed
   ansible.windows.win_shell: |
     C:\lab\telemetry\sysmon\Sysmon64.exe -c C:\lab\telemetry\sysmonconfig.xml
-  when: sysmon_svc.services | default([]) | length > 0
+  when: telemetry_sysmon_svc.services | default([]) | length > 0
   changed_when: true
 
 # --------------------------------------------------------------- Vector ----
@@ -61,16 +61,16 @@
   ansible.windows.win_template:
     src: vector.yaml.j2
     dest: 'C:\Program Files\Vector\config\vector.yaml'
-  notify: restart vector
+  notify: Restart vector
 
 - name: Validate the Vector config before trusting it
   # Fail loudly here rather than silently shipping nothing.
   ansible.windows.win_shell: |
     & 'C:\Program Files\Vector\bin\vector.exe' validate --no-environment `
       --config 'C:\Program Files\Vector\config\vector.yaml'
-  register: vector_validate
+  register: telemetry_vector_validate
   changed_when: false
-  failed_when: vector_validate.rc != 0
+  failed_when: telemetry_vector_validate.rc != 0
 
 - name: Ensure Vector runs as a service and starts at boot
   ansible.windows.win_service:

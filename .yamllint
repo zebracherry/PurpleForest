@@ -13,6 +13,14 @@ rules:
     allowed-values: ['true', 'false']
   comments:
     min-spaces-from-content: 1
+  # ansible-lint requires these four settings of any custom yamllint config;
+  # without them it disables its own fix mode and warns on every run.
+  comments-indentation: false
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
 
 ignore: |
   .github/

@@ -53,20 +53,20 @@
     src: docker-compose.yml.j2
     dest: /opt/graylog/docker-compose.yml
     mode: "0644"
-  register: compose_file
+  register: graylog_compose_file
 
 - name: Bring up the Graylog stack
   community.docker.docker_compose_v2:
     project_src: /opt/graylog
     state: present
-    recreate: "{{ 'always' if compose_file.changed else 'auto' }}"
+    recreate: "{{ 'always' if graylog_compose_file.changed else 'auto' }}"
 
 - name: Wait for the Graylog API to answer
   ansible.builtin.uri:
     url: "http://127.0.0.1:9000/api/system/lbstatus"
     status_code: [200, 503]
-  register: gl_api
-  until: gl_api.status == 200
+  register: graylog_api
+  until: graylog_api.status == 200
   retries: 40
   delay: 15
 

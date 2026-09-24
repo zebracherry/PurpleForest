@@ -9,8 +9,8 @@
 - name: Wait until the DC answers as a domain controller
   ansible.windows.win_shell: |
     Resolve-DnsName -Name _ldap._tcp.dc._msdcs.{{ domain_name }} -Type SRV
-  register: dcsrv
-  until: dcsrv.rc == 0
+  register: workstation_dcsrv
+  until: workstation_dcsrv.rc == 0
   retries: 30
   delay: 20
   changed_when: false
