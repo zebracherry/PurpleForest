@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Exercise write-ups
+    url: https://noob2root.com
+    about: The blog series that walks through each exercise in detail

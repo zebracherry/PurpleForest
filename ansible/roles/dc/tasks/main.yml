@@ -1,0 +1,198 @@
+---
+# ------------------------------------------------------------- the forest ---
+
+- name: Point DNS at itself before promotion
+  ansible.windows.win_dns_client:
+    adapter_names: "*"
+    dns_servers:
+      - 127.0.0.1
+
+- name: Create the forest
+  microsoft.ad.domain:
+    dns_domain_name: "{{ domain_name }}"
+    domain_netbios_name: "{{ domain_netbios }}"
+    safe_mode_password: "{{ safe_mode_password }}"
+    reboot: true
+  register: forest
+
+- name: Wait for AD services to settle after promotion
+  ansible.builtin.wait_for_connection:
+    delay: 60
+    timeout: 900
+  when: forest.changed
+
+- name: Set the Domain Administrator password to a known value
+  microsoft.ad.user:
+    name: Administrator
+    password: "{{ domain_admin_password }}"
+    password_never_expires: true
+    update_password: always
+    state: present
+
+# ------------------------------------------------------------- OU layout ---
+
+- name: Create lab OUs
+  microsoft.ad.ou:
+    name: "{{ item }}"
+    path: "{{ domain_dn }}"
+    state: present
+  loop:
+    - LabUsers
+    - LabServers
+    - LabWorkstations
+    - LabServiceAccounts
+
+# ------------------------------------------------------------- BadBlood ----
+# Generates thousands of users, groups, OUs and ACLs so BloodHound output
+# looks like a real environment. Slow. Runs once.
+
+- name: Check whether BadBlood has already run
+  ansible.windows.win_stat:
+    path: C:\lab\.badblood_done
+  register: badblood_marker
+
+- name: Deploy and run BadBlood
+  when:
+    - run_badblood | bool
+    - not badblood_marker.stat.exists
+  block:
+    - name: Create working directory
+      ansible.windows.win_file:
+        path: C:\lab
+        state: directory
+
+    - name: Clone BadBlood
+      ansible.windows.win_shell: |
+        git clone {{ badblood_repo }} C:\lab\BadBlood
+      args:
+        creates: C:\lab\BadBlood
+
+    - name: Run BadBlood (this takes 10-20 minutes)
+      ansible.windows.win_shell: |
+        Set-Location C:\lab\BadBlood
+        .\Invoke-BadBlood.ps1 -Force
+      args:
+        chdir: C:\lab\BadBlood
+      async: 3600
+      poll: 60
+
+    - name: Mark BadBlood as complete
+      ansible.windows.win_copy:
+        content: "done"
+        dest: C:\lab\.badblood_done
+
+# --------------------------------------------------------- misconfigs ------
+# Each block maps to one exercise. Off by default -- see group_vars/all.yml.
+
+- name: Misconfig - Kerberoastable service account
+  when: misconfig_kerberoast | bool
+  block:
+    - name: Create the SQL service account with a weak password
+      microsoft.ad.user:
+        name: svc_mssql
+        firstname: SQL
+        surname: Service
+        password: "Summer2024"
+        password_never_expires: true
+        path: "OU=LabServiceAccounts,{{ domain_dn }}"
+        state: present
+
+    - name: Register an SPN on it
+      ansible.windows.win_shell: |
+        setspn -S MSSQLSvc/sql01.{{ domain_name }}:1433 {{ domain_netbios }}\svc_mssql
+      register: spn
+      changed_when: "'Updated object' in spn.stdout"
+      failed_when: spn.rc != 0 and 'Duplicate SPN' not in spn.stdout
+
+- name: Misconfig - AS-REP roastable account
+  when: misconfig_asreproast | bool
+  block:
+    - name: Create the backup account
+      microsoft.ad.user:
+        name: svc_backup
+        password: "Backup2023!"
+        password_never_expires: true
+        path: "OU=LabServiceAccounts,{{ domain_dn }}"
+        state: present
+
+    - name: Disable Kerberos pre-authentication
+      ansible.windows.win_shell: |
+        Set-ADAccountControl -Identity svc_backup -DoesNotRequirePreAuth $true
+
+- name: Misconfig - cleartext password in a user description
+  when: misconfig_password_in_desc | bool
+  microsoft.ad.user:
+    name: jhelpdesk
+    password: "Sup3rS3cret!2024"
+    description: "Temp account - pw Sup3rS3cret!2024 - remove after migration"
+    path: "OU=LabUsers,{{ domain_dn }}"
+    state: present
+
+- name: Misconfig - GenericAll ACL abuse path
+  when: misconfig_acl_genericall | bool
+  ansible.windows.win_shell: |
+    Import-Module ActiveDirectory
+    $target = Get-ADGroup "Domain Admins"
+    $user   = Get-ADUser jhelpdesk
+    $sid    = New-Object System.Security.Principal.SecurityIdentifier $user.SID
+    $acl    = Get-Acl "AD:$($target.DistinguishedName)"
+    $ace    = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
+                $sid, "GenericAll", "Allow")
+    $acl.AddAccessRule($ace)
+    Set-Acl -Path "AD:$($target.DistinguishedName)" -AclObject $acl
+
+- name: Misconfig - unconstrained delegation on the workstation
+  when: misconfig_unconstrained_deleg | bool
+  ansible.windows.win_shell: |
+    Set-ADAccountControl -Identity "WS01$" -TrustedForDelegation $true
+
+- name: Misconfig - accounts vulnerable to password spraying
+  when: misconfig_weak_spray_target | bool
+  microsoft.ad.user:
+    name: "{{ item }}"
+    password: "Password1"
+    password_never_expires: true
+    path: "OU=LabUsers,{{ domain_dn }}"
+    state: present
+  loop:
+    - tlannister
+    - jsnow
+    - astark
+    - rbaratheon
+
+# ----------------------------------------------------------- audit policy ---
+# Windows does NOT log most of what AD detections need, out of the box.
+# Without this, half the exercises produce no telemetry and you will waste
+# an afternoon blaming Vector.
+
+- name: Enable the audit subcategories the detections depend on
+  ansible.windows.win_shell: |
+    auditpol /set /subcategory:"Kerberos Authentication Service" /success:enable /failure:enable
+    auditpol /set /subcategory:"Kerberos Service Ticket Operations" /success:enable /failure:enable
+    auditpol /set /subcategory:"Logon" /success:enable /failure:enable
+    auditpol /set /subcategory:"Logoff" /success:enable
+    auditpol /set /subcategory:"Account Lockout" /success:enable /failure:enable
+    auditpol /set /subcategory:"Directory Service Access" /success:enable /failure:enable
+    auditpol /set /subcategory:"Directory Service Changes" /success:enable /failure:enable
+    auditpol /set /subcategory:"Process Creation" /success:enable
+    auditpol /set /subcategory:"Credential Validation" /success:enable /failure:enable
+  changed_when: true
+
+- name: Include the command line in process creation events (4688)
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit
+    name: ProcessCreationIncludeCmdLine_Enabled
+    data: 1
+    type: dword
+
+- name: Enable PowerShell script block logging
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging
+    name: EnableScriptBlockLogging
+    data: 1
+    type: dword
+
+- name: Raise the Security log size so an attack does not roll it over
+  ansible.windows.win_shell: |
+    wevtutil sl Security /ms:1073741824
+  changed_when: true

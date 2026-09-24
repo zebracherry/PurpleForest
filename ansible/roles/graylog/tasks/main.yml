@@ -1,0 +1,96 @@
+---
+- name: Install Docker prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - python3-docker
+    state: present
+    update_cache: true
+
+- name: Add the Docker GPG key
+  ansible.builtin.apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    keyring: /etc/apt/keyrings/docker.gpg
+    state: present
+
+- name: Add the Docker repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+
+- name: Install Docker Engine and Compose
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Ensure Docker is running
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Create the Graylog directory
+  ansible.builtin.file:
+    path: /opt/graylog
+    state: directory
+    mode: "0755"
+
+# Graylog needs a SHA-256 hash of the admin password and a separate
+# password secret. Generate deterministically so reruns do not churn.
+- name: Compute the admin password hash
+  ansible.builtin.set_fact:
+    graylog_password_sha2: "{{ graylog_admin_password | hash('sha256') }}"
+
+- name: Deploy the compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /opt/graylog/docker-compose.yml
+    mode: "0644"
+  register: compose_file
+
+- name: Bring up the Graylog stack
+  community.docker.docker_compose_v2:
+    project_src: /opt/graylog
+    state: present
+    recreate: "{{ 'always' if compose_file.changed else 'auto' }}"
+
+- name: Wait for the Graylog API to answer
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9000/api/system/lbstatus"
+    status_code: [200, 503]
+  register: gl_api
+  until: gl_api.status == 200
+  retries: 40
+  delay: 15
+
+- name: Create the GELF TCP input for Vector
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9000/api/system/inputs"
+    method: POST
+    user: admin
+    password: "{{ graylog_admin_password }}"
+    force_basic_auth: true
+    headers:
+      X-Requested-By: ansible
+      Content-Type: application/json
+    body_format: json
+    body:
+      title: "Vector GELF TCP"
+      type: "org.graylog2.inputs.gelf.tcp.GELFTCPInput"
+      global: true
+      configuration:
+        bind_address: "0.0.0.0"
+        port: "{{ graylog_gelf_port }}"
+        recv_buffer_size: 1048576
+        number_worker_threads: 2
+        tls_enable: false
+        use_null_delimiter: true
+    status_code: [201, 400]   # 400 = already exists
+  changed_when: false

@@ -1,0 +1,20 @@
+# Vagrant
+.vagrant/
+*.box
+*.log
+
+# Ansible
+ansible/*.retry
+ansible/inventory/*.local
+*.vault
+
+# Vector
+vector/buffer/
+
+# Local overrides — never commit real credentials
+ansible/group_vars/local.yml
+.env
+
+# OS noise
+.DS_Store
+Thumbs.db

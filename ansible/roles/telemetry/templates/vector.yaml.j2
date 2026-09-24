@@ -1,0 +1,67 @@
+# Managed by Ansible -- edit roles/telemetry/templates/vector.yaml.j2
+#
+# VERIFY AGAINST YOUR VECTOR VERSION. The Windows event log source has been
+# renamed across releases. Check what your build supports with:
+#   vector list
+# and adjust the `type:` fields below if they do not match.
+
+data_dir: "C:\\ProgramData\\vector"
+
+sources:
+  windows_security:
+    type: windows_eventlog
+    channels:
+      - Security
+
+  windows_system:
+    type: windows_eventlog
+    channels:
+      - System
+
+  sysmon:
+    type: windows_eventlog
+    channels:
+      - "Microsoft-Windows-Sysmon/Operational"
+
+  powershell:
+    type: windows_eventlog
+    channels:
+      - "Microsoft-Windows-PowerShell/Operational"
+      - "Windows PowerShell"
+
+transforms:
+  enrich:
+    type: remap
+    inputs:
+      - windows_security
+      - windows_system
+      - sysmon
+      - powershell
+    source: |
+      .lab_host    = "{{ inventory_hostname }}"
+      .lab_role    = "{{ 'domain_controller' if inventory_hostname in groups['domain_controllers'] else 'workstation' }}"
+      .lab_domain  = "{{ domain_name }}"
+      .ingested_at = now()
+
+      # Graylog's GELF input wants these field names.
+      .host         = "{{ inventory_hostname }}"
+      .short_message = to_string(.Message) ?? "windows event"
+      .version      = "1.1"
+
+sinks:
+  graylog:
+    type: socket
+    inputs:
+      - enrich
+    address: "{{ siem_ip }}:{{ graylog_gelf_port }}"
+    mode: tcp
+    encoding:
+      codec: json
+    framing:
+      method: character_delimited
+      character_delimited:
+        delimiter: "\0"        # GELF TCP requires null-delimited frames
+    buffer:
+      type: disk
+      max_size: 536870912      # 512 MB -- survives SIEM downtime
+      when_full: block

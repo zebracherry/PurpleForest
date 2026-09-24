@@ -1,0 +1,79 @@
+---
+# --------------------------------------------------------------- Sysmon ----
+
+- name: Create the telemetry directory
+  ansible.windows.win_file:
+    path: C:\lab\telemetry
+    state: directory
+
+- name: Download Sysmon
+  ansible.windows.win_get_url:
+    url: https://download.sysinternals.com/files/Sysmon.zip
+    dest: C:\lab\telemetry\Sysmon.zip
+
+- name: Extract Sysmon
+  community.windows.win_unzip:
+    src: C:\lab\telemetry\Sysmon.zip
+    dest: C:\lab\telemetry\sysmon
+    creates: C:\lab\telemetry\sysmon\Sysmon64.exe
+
+- name: Download the Sysmon config
+  ansible.windows.win_get_url:
+    url: "{{ sysmon_config_url }}"
+    dest: C:\lab\telemetry\sysmonconfig.xml
+
+- name: Check whether Sysmon is already installed
+  ansible.windows.win_service_info:
+    name: Sysmon64
+  register: sysmon_svc
+  failed_when: false
+
+- name: Install Sysmon
+  ansible.windows.win_shell: |
+    C:\lab\telemetry\sysmon\Sysmon64.exe -accepteula -i C:\lab\telemetry\sysmonconfig.xml
+  when: not (sysmon_svc.services | default([]) | length > 0)
+
+- name: Update the Sysmon config if it is already installed
+  ansible.windows.win_shell: |
+    C:\lab\telemetry\sysmon\Sysmon64.exe -c C:\lab\telemetry\sysmonconfig.xml
+  when: sysmon_svc.services | default([]) | length > 0
+  changed_when: true
+
+# --------------------------------------------------------------- Vector ----
+
+- name: Download the Vector MSI
+  ansible.windows.win_get_url:
+    url: "https://packages.timber.io/vector/{{ vector_version }}/vector-{{ vector_version }}-x86_64-pc-windows-msvc.msi"
+    dest: "C:\\lab\\telemetry\\vector-{{ vector_version }}.msi"
+
+- name: Install Vector
+  ansible.windows.win_package:
+    path: "C:\\lab\\telemetry\\vector-{{ vector_version }}.msi"
+    state: present
+    arguments: /quiet
+
+- name: Create the Vector data directory
+  ansible.windows.win_file:
+    path: C:\ProgramData\vector
+    state: directory
+
+- name: Deploy the Vector config
+  ansible.windows.win_template:
+    src: vector.yaml.j2
+    dest: 'C:\Program Files\Vector\config\vector.yaml'
+  notify: restart vector
+
+- name: Validate the Vector config before trusting it
+  # Fail loudly here rather than silently shipping nothing.
+  ansible.windows.win_shell: |
+    & 'C:\Program Files\Vector\bin\vector.exe' validate --no-environment `
+      --config 'C:\Program Files\Vector\config\vector.yaml'
+  register: vector_validate
+  changed_when: false
+  failed_when: vector_validate.rc != 0
+
+- name: Ensure Vector runs as a service and starts at boot
+  ansible.windows.win_service:
+    name: vector
+    start_mode: auto
+    state: started

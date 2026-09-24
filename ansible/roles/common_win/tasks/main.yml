@@ -1,0 +1,33 @@
+---
+- name: Wait for WinRM to be reachable
+  ansible.builtin.wait_for_connection:
+    timeout: 600
+    sleep: 10
+
+- name: Gather facts now that the host is answering
+  ansible.builtin.setup:
+
+- name: Allow all traffic on the lab network through the Windows firewall
+  # The lab is isolated. Blocking here just produces confusing dead ends
+  # when an attack "should" work and does not.
+  community.windows.win_firewall_rule:
+    name: "Lab network - allow all"
+    localip: any
+    remoteip: "{{ lab_subnet }}"
+    action: allow
+    direction: in
+    enabled: true
+    state: present
+
+- name: Disable Windows Defender real-time protection
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection
+    name: DisableRealtimeMonitoring
+    data: 1
+    type: dword
+  when: disable_defender | bool
+  notify: reboot windows
+
+- name: Set the timezone so event timestamps line up with the SIEM
+  community.windows.win_timezone:
+    timezone: "UTC"

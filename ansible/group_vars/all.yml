@@ -1,0 +1,47 @@
+---
+# ---------------------------------------------------------------- domain ---
+domain_name:      corp.lab
+domain_netbios:   CORP
+domain_dn:        "DC=corp,DC=lab"
+safe_mode_password: "L4bSafeM0de!"          # DSRM password
+domain_admin_password: "L4bAdm1n!"
+
+dc_ip:      10.10.10.10
+ws_ip:      10.10.10.20
+siem_ip:    10.10.10.30
+kali_ip:    10.10.10.50
+lab_subnet: 10.10.10.0/24
+
+# ------------------------------------------------------------- telemetry ---
+sysmon_config_url: "https://raw.githubusercontent.com/olafhartong/sysmon-modular/master/sysmonconfig.xml"
+vector_version: "0.41.1"                    # pin; bump deliberately
+graylog_gelf_port: 12201
+
+# --------------------------------------------------------------- Graylog ---
+graylog_admin_password: "L4bGraylog!"
+opensearch_heap: "2g"
+graylog_retention_days: 30
+
+# ------------------------------------------------------- misconfig flags ---
+# Every exercise depends on one of these. Leave them off by default so the
+# domain is clean, and enable only what the exercise you are running needs:
+#
+#   ansible-playbook -i inventory/lab.ini site.yml -e misconfig_kerberoast=true
+#
+misconfig_kerberoast:            false   # SPN on an account with a weak password
+misconfig_asreproast:            false   # Kerberos pre-auth disabled
+misconfig_acl_genericall:        false   # user with GenericAll over a priv group
+misconfig_unconstrained_deleg:   false   # unconstrained delegation on a host
+misconfig_password_in_desc:      false   # cleartext password in a description
+misconfig_weak_spray_target:     false   # predictable passwords for spraying
+misconfig_smb_signing_off:       false   # SMB signing disabled (relay)
+
+# Populate the domain with realistic bulk users/groups/ACLs via BadBlood.
+# Slow (10-20 min) but it is the difference between a toy domain and one
+# where BloodHound output looks real.
+run_badblood: true
+badblood_repo: "https://github.com/davidprowe/BadBlood.git"
+
+# Windows Defender. Off makes the offensive exercises work first time;
+# on is more realistic. Flip it per exercise.
+disable_defender: true

@@ -1,0 +1,18 @@
+---
+# Alignment in group_vars is deliberate and improves readability,
+# so the colons rule is relaxed rather than the files reformatted.
+extends: default
+
+rules:
+  colons:
+    max-spaces-after: -1
+  line-length:
+    max: 160
+    level: warning
+  truthy:
+    allowed-values: ['true', 'false']
+  comments:
+    min-spaces-from-content: 1
+
+ignore: |
+  .github/

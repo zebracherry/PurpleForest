@@ -1,0 +1,46 @@
+---
+# Full lab provisioning. Run from KALI.
+#
+#   ansible-playbook -i inventory/lab.ini site.yml
+#
+# Order matters: the forest has to exist before WS01 can join it, and the
+# SIEM has to be listening before Vector starts shipping.
+
+- name: Stand up the SIEM first so telemetry has somewhere to land
+  hosts: siem
+  become: true
+  roles:
+    - graylog
+
+- name: Build the domain controller
+  hosts: domain_controllers
+  gather_facts: false
+  roles:
+    - common_win
+    - dc
+
+- name: Join the workstation to the domain
+  hosts: workstations
+  gather_facts: false
+  roles:
+    - common_win
+    - workstation
+
+- name: Deploy telemetry to every Windows host
+  hosts: windows
+  gather_facts: false
+  roles:
+    - telemetry
+
+- name: Report
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Summary
+      ansible.builtin.debug:
+        msg:
+          - "Lab build complete."
+          - "Graylog:  http://{{ hostvars['siem01'].ansible_host }}:9000  (admin / see group_vars)"
+          - "Domain:   {{ domain_name }}"
+          - "Next:     snapshot everything before you attack anything."

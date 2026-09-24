@@ -1,0 +1,57 @@
+# Managed by Ansible -- edit roles/graylog/templates/docker-compose.yml.j2
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: graylog-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+  opensearch:
+    image: opensearchproject/opensearch:2.15.0
+    container_name: graylog-opensearch
+    restart: unless-stopped
+    environment:
+      - cluster.name=graylog
+      - node.name=opensearch
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms{{ opensearch_heap }} -Xmx{{ opensearch_heap }}"
+      - plugins.security.disabled=true
+      - action.auto_create_index=false
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile:  { soft: 65536, hard: 65536 }
+    volumes:
+      - os_data:/usr/share/opensearch/data
+
+  graylog:
+    image: graylog/graylog:6.1
+    container_name: graylog
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+      - opensearch
+    environment:
+      - GRAYLOG_NODE_ID_FILE=/usr/share/graylog/data/config/node-id
+      - GRAYLOG_PASSWORD_SECRET={{ (graylog_admin_password ~ domain_name) | hash('sha256') }}
+      - GRAYLOG_ROOT_PASSWORD_SHA2={{ graylog_password_sha2 }}
+      - GRAYLOG_HTTP_BIND_ADDRESS=0.0.0.0:9000
+      - GRAYLOG_HTTP_EXTERNAL_URI=http://{{ siem_ip }}:9000/
+      - GRAYLOG_ELASTICSEARCH_HOSTS=http://opensearch:9200
+      - GRAYLOG_MONGODB_URI=mongodb://mongodb:27017/graylog
+      - GRAYLOG_TIMEZONE=UTC
+    ports:
+      - "9000:9000"                                    # web UI
+      - "{{ graylog_gelf_port }}:{{ graylog_gelf_port }}/tcp"   # Vector GELF
+      - "1514:1514/udp"                                # syslog, for later
+    volumes:
+      - graylog_data:/usr/share/graylog/data/data
+      - graylog_journal:/usr/share/graylog/data/journal
+
+volumes:
+  mongo_data:
+  os_data:
+  graylog_data:
+  graylog_journal:
