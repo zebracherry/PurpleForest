@@ -132,7 +132,7 @@ is where you run it from.
 ## Quick start
 
 ```bash
-git clone https://github.com/<you>/purpleforest.git
+git clone [https://github.com/zebracherry/PurpleForest.git]
 cd purpleforest
 
 ./lab.sh check      # verify tooling — changes nothing
