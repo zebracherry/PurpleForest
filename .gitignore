@@ -18,3 +18,7 @@ ansible/group_vars/local.yml
 # OS noise
 .DS_Store
 Thumbs.db
+
+# PurpleForest host choices (drive, Kali mode)
+.lab-config.json
+.vagrant.d/

@@ -131,28 +131,55 @@ is where you run it from.
 
 ## Quick start
 
-```bash
-git clone https://github.com/zebracherry/PurpleForest.git
-cd purpleforest
+Everything below runs on the **Windows host** — the machine running VMware
+Workstation — not inside a VM.
 
-./lab.sh check      # verify tooling — changes nothing
-./lab.sh boxes      # verify every box has a vmware_desktop build
-./lab.sh up         # create the VMs (~30-60 min, mostly downloads)
+**1. Install VMware Workstation Pro** (free for personal use). It sits behind
+a Broadcom login, so it's the one thing the script can't fetch for you.
+
+**2. Run setup** from an *Administrator* PowerShell:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+irm https://raw.githubusercontent.com/zebracherry/PurpleForest/main/lab.ps1 -OutFile lab.ps1
+.\lab.ps1 setup
 ```
 
-Then, **inside the Kali VM**:
+Setup asks two questions, then does the rest:
 
-```bash
-git clone https://github.com/<you>/purpleforest.git ~/purpleforest
-cd ~/purpleforest/ansible
-ansible-playbook site.yml      # ~30-40 min
+- **Which drive?** VMs, Vagrant boxes (~40 GB) and snapshots all land there,
+  not on `C:`. Budget ~150 GB.
+- **Already have a Kali VM?** Say yes and point it at the `.vmx`; the lab
+  attaches it to the lab network instead of downloading another one.
+
+It then installs Vagrant, the Vagrant VMware Utility (both checksum-verified
+against HashiCorp's published SHA256SUMS) and the `vagrant-vmware-desktop`
+plugin, skipping anything already present. Re-running it is safe.
+
+**3. Bring the VMs up** from the lab folder setup created:
+
+```powershell
+cd D:\PurpleForest        # whichever drive you picked
+.\lab.ps1 up              # ~30-60 min, mostly downloads
 ```
 
-Finally, back on the host:
+**4. Provision from inside Kali:**
 
 ```bash
-./lab.sh snapshot   # save 'baseline' — do this before attacking anything
+git clone https://github.com/zebracherry/PurpleForest.git ~/PurpleForest
+sudo ~/PurpleForest/scripts/bootstrap-kali.sh    # only if you brought your own Kali
+cd ~/PurpleForest/ansible
+ansible-playbook site.yml                        # ~30-40 min
 ```
+
+**5. Snapshot** back on the host, before attacking anything:
+
+```powershell
+.\lab.ps1 snapshot
+```
+
+On a Linux host, `./lab.sh` does steps 3 and 5; install Vagrant and the
+utility with your package manager first.
 
 ### Why two machines?
 
@@ -239,7 +266,8 @@ never expose this lab to a network you value.
 ```
 purpleforest/
 ├── Vagrantfile              4 VMs: NICs, RAM, disk, OS selection
-├── lab.sh                   check / boxes / up / snapshot / restore / destroy
+├── lab.ps1                  Windows host: setup / check / up / snapshot / restore / destroy
+├── lab.sh                   Linux host equivalent
 ├── ansible/
 │   ├── site.yml             ordered plays — SIEM, DC, workstation, telemetry
 │   ├── group_vars/all.yml   domain config + misconfiguration toggles

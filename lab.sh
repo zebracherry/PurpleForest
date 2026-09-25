@@ -23,7 +23,31 @@ ok()   { echo "  ${GRN}[ok]${RST}   $*"; }
 warn() { echo "  ${YEL}[warn]${RST} $*"; }
 fail() { echo "  ${RED}[fail]${RST} $*"; FAILED=1; }
 
+# Running this inside a guest is the most common first mistake: every check
+# fails for reasons that have nothing to do with the host. Catch it early.
+guard_guest() {
+  local virt="none"
+  command -v systemd-detect-virt >/dev/null 2>&1 && virt="$(systemd-detect-virt 2>/dev/null || true)"
+  if [ "$virt" != "none" ] && [ -n "$virt" ]; then
+    echo "${YEL}This looks like a virtual machine (${virt}).${RST}"
+    echo
+    echo "  lab.sh / lab.ps1 run on the HOST that runs VMware Workstation."
+    echo "  A guest cannot create sibling VMs, and disk checks here measure"
+    echo "  this VM's virtual disk, not your real drive."
+    echo
+    echo "  Windows host:  open an Administrator PowerShell and run .\\lab.ps1 setup"
+    echo "  Linux host:    run ./lab.sh check on the host itself"
+    echo
+    echo "  Inside Kali you only need: sudo ./scripts/bootstrap-kali.sh"
+    echo "  (and only if you brought your own Kali instead of the Vagrant one)."
+    echo
+    echo "  Set LAB_FORCE=1 to run anyway."
+    [ "${LAB_FORCE:-0}" = "1" ] || exit 1
+  fi
+}
+
 check() {
+  guard_guest
   FAILED=0
   echo "Checking prerequisites..."
 
@@ -115,6 +139,7 @@ case "${1:-}" in
   check)   check ;;
   boxes)   boxes ;;
   up)
+    guard_guest
     shift
     targets=("${@:-}")
     [ -z "${targets[0]:-}" ] && targets=("${VMS[@]}")

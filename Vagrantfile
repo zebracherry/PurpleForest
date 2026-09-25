@@ -40,6 +40,12 @@ LAB_NET = "10.10.10"
 #
 WS_OS = (ENV["LAB_WS_OS"] || "win10").downcase
 
+# --- Kali -------------------------------------------------------------------
+# "vagrant"  (default) -- Vagrant builds a fresh Kali box.
+# "existing"           -- you already have a Kali VM; Vagrant leaves it alone
+#                         and lab.ps1 attaches it to the lab network instead.
+KALI_MODE = (ENV["LAB_KALI"] || "vagrant").downcase
+
 WS_BOXES = {
   "win10" => "gusztavvargadr/windows-10-enterprise",
   "win11" => "gusztavvargadr/windows-11-enterprise"
@@ -143,21 +149,24 @@ Vagrant.configure("2") do |config|
 
   # ---------------------------------------------------------------- KALI ---
   # This is both the attacker box and the Ansible control node.
-  config.vm.define "kali" do |cfg|
-    cfg.vm.box         = BOXES["kali"][:box]
-    cfg.vm.box_version = BOXES["kali"][:version]
-    cfg.vm.hostname    = "kali"
+  # Skipped entirely when you bring your own Kali (LAB_KALI=existing).
+  if KALI_MODE == "vagrant"
+    config.vm.define "kali" do |cfg|
+      cfg.vm.box         = BOXES["kali"][:box]
+      cfg.vm.box_version = BOXES["kali"][:version]
+      cfg.vm.hostname    = "kali"
 
-    cfg.vm.network "private_network", ip: "#{LAB_NET}.50"
+      cfg.vm.network "private_network", ip: "#{LAB_NET}.50"
 
-    cfg.vm.provider "vmware_desktop" do |v|
-      v.gui       = true
-      v.memory    = 4096
-      v.cpus      = 2
-      v.vmx["displayname"] = "lab-kali"
-      v.whitelist_verified = true
+      cfg.vm.provider "vmware_desktop" do |v|
+        v.gui       = true
+        v.memory    = 4096
+        v.cpus      = 2
+        v.vmx["displayname"] = "lab-kali"
+        v.whitelist_verified = true
+      end
+
+      cfg.vm.provision "shell", path: "scripts/bootstrap-kali.sh"
     end
-
-    cfg.vm.provision "shell", path: "scripts/bootstrap-kali.sh"
   end
 end
