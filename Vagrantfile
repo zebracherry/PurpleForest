@@ -47,8 +47,8 @@ WS_OS = (ENV["LAB_WS_OS"] || "win10").downcase
 KALI_MODE = (ENV["LAB_KALI"] || "vagrant").downcase
 
 WS_BOXES = {
-  "win10" => "gusztavvargadr/windows-10-enterprise",
-  "win11" => "gusztavvargadr/windows-11-enterprise"
+  "win10" => "gusztavvargadr/windows-10-22h2-enterprise",
+  "win11" => "gusztavvargadr/windows-11-25h2-enterprise"
 }
 
 unless WS_BOXES.key?(WS_OS)
