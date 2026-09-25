@@ -19,6 +19,7 @@ services:
       - bootstrap.memory_lock=true
       - "OPENSEARCH_JAVA_OPTS=-Xms{{ opensearch_heap }} -Xmx{{ opensearch_heap }}"
       - plugins.security.disabled=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
       - action.auto_create_index=false
     ulimits:
       memlock: { soft: -1, hard: -1 }

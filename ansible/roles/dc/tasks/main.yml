@@ -48,6 +48,23 @@
 # Generates thousands of users, groups, OUs and ACLs so BloodHound output
 # looks like a real environment. Slow. Runs once.
 
+- name: Forward external DNS through the NAT gateway
+  # A new DC answers for its own zone but has no route to the rest of the
+  # internet unless root hints get out. VMware NAT runs a DNS proxy on the
+  # gateway, so forward everything else there.
+  ansible.windows.win_powershell:
+    script: |
+      $gw = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 |
+             Sort-Object RouteMetric | Select-Object -First 1).NextHop
+      $current = @((Get-DnsServerForwarder).IPAddress | ForEach-Object { $_.IPAddressToString })
+      if ($current -contains $gw) {
+        $Ansible.Changed = $false
+      } else {
+        Set-DnsServerForwarder -IPAddress $gw
+        $Ansible.Changed = $true
+      }
+      Resolve-DnsName github.com -ErrorAction Stop | Out-Null
+
 - name: Check whether BadBlood has already run
   ansible.windows.win_stat:
     path: C:\lab\.badblood_done
@@ -63,16 +80,26 @@
         path: C:\lab
         state: directory
 
-    - name: Clone BadBlood
-      ansible.windows.win_shell: |
-        git clone {{ badblood_repo }} C:\lab\BadBlood
-      args:
-        creates: C:\lab\BadBlood
+    - name: Download BadBlood (zip -- no git on a fresh DC)
+      ansible.windows.win_get_url:
+        url: https://github.com/davidprowe/BadBlood/archive/refs/heads/master.zip
+        dest: C:\\lab\\BadBlood.zip
+
+    - name: Extract BadBlood
+      ansible.windows.win_powershell:
+        script: |
+          if (-not (Test-Path C:\lab\BadBlood)) {
+            Expand-Archive C:\lab\BadBlood.zip -DestinationPath C:\lab -Force
+            Rename-Item C:\lab\BadBlood-master BadBlood
+            $Ansible.Changed = $true
+          } else {
+            $Ansible.Changed = $false
+          }
 
     - name: Run BadBlood (this takes 10-20 minutes)
       ansible.windows.win_shell: |
         Set-Location C:\lab\BadBlood
-        .\Invoke-BadBlood.ps1 -Force
+        .\Invoke-BadBlood.ps1 -NonInteractive
       args:
         chdir: C:\lab\BadBlood
       async: 3600

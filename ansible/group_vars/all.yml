@@ -13,8 +13,8 @@ kali_ip:    10.10.10.50
 lab_subnet: 10.10.10.0/24
 
 # ------------------------------------------------------------- telemetry ---
-sysmon_config_url: "https://raw.githubusercontent.com/olafhartong/sysmon-modular/master/sysmonconfig.xml"
-vector_version: "0.41.1"                    # pin; bump deliberately
+sysmon_config_url: "https://github.com/olafhartong/sysmon-modular/releases/latest/download/sysmonconfig.xml"
+vector_version: "0.58.0"                    # pin; bump deliberately
 graylog_gelf_port: 12201
 
 # --------------------------------------------------------------- Graylog ---

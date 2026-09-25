@@ -9,22 +9,22 @@ data_dir: "C:\\ProgramData\\vector"
 
 sources:
   windows_security:
-    type: windows_eventlog
+    type: windows_event_log
     channels:
       - Security
 
   windows_system:
-    type: windows_eventlog
+    type: windows_event_log
     channels:
       - System
 
   sysmon:
-    type: windows_eventlog
+    type: windows_event_log
     channels:
       - "Microsoft-Windows-Sysmon/Operational"
 
   powershell:
-    type: windows_eventlog
+    type: windows_event_log
     channels:
       - "Microsoft-Windows-PowerShell/Operational"
       - "Windows PowerShell"
@@ -45,7 +45,7 @@ transforms:
 
       # Graylog's GELF input wants these field names.
       .host         = "{{ inventory_hostname }}"
-      .short_message = to_string(.Message) ?? "windows event"
+      .short_message = to_string(.message) ?? "windows event"
       .version      = "1.1"
 
 sinks:

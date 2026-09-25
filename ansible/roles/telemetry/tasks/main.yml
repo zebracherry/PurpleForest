@@ -43,7 +43,7 @@
 
 - name: Download the Vector MSI
   ansible.windows.win_get_url:
-    url: "https://packages.timber.io/vector/{{ vector_version }}/vector-{{ vector_version }}-x86_64-pc-windows-msvc.msi"
+    url: "https://github.com/vectordotdev/vector/releases/download/v{{ vector_version }}/vector-{{ vector_version }}-x64.msi"
     dest: "C:\\lab\\telemetry\\vector-{{ vector_version }}.msi"
 
 - name: Install Vector
@@ -67,10 +67,23 @@
   # Fail loudly here rather than silently shipping nothing.
   ansible.windows.win_shell: |
     & 'C:\Program Files\Vector\bin\vector.exe' validate --no-environment `
-      --config 'C:\Program Files\Vector\config\vector.yaml'
+      --config-yaml 'C:\Program Files\Vector\config\vector.yaml'
   register: telemetry_vector_validate
   changed_when: false
   failed_when: telemetry_vector_validate.rc != 0
+
+- name: Register Vector as a Windows service
+  # The MSI installs the binary only; the service is a separate step.
+  ansible.windows.win_powershell:
+    script: |
+      if (Get-Service -Name vector -ErrorAction SilentlyContinue) {
+        $Ansible.Changed = $false
+        return
+      }
+      & 'C:\Program Files\Vector\bin\vector.exe' service install `
+        --config-yaml 'C:\Program Files\Vector\config\vector.yaml'
+      if ($LASTEXITCODE -ne 0) { throw "vector service install exited $LASTEXITCODE" }
+      $Ansible.Changed = $true
 
 - name: Ensure Vector runs as a service and starts at boot
   ansible.windows.win_service:
