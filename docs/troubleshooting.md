@@ -9,8 +9,9 @@ Ordered roughly by how often each one bites.
 **"Box doesn't support the provider you requested"**
 
 Registry provider coverage varies by box *and* by version, and old versions
-get retired. Run `./lab.sh boxes` to see which one is missing, then swap it
-in the `BOXES` hash at the top of the `Vagrantfile`. Browse alternatives at
+get retired, and maintainers sometimes rename boxes (a `404` from the
+registry means the name no longer exists). Check the box on the registry,
+then swap it in the `BOXES` or `WS_BOXES` hash at the top of the `Vagrantfile`. Browse alternatives at
 the [HCP Vagrant registry](https://portal.cloud.hashicorp.com/vagrant/discover).
 
 **"The Vagrant VMware Utility is not installed"**
@@ -29,8 +30,9 @@ guest OS you chose.
 
 ## Windows provisioning hangs or times out
 
-This is the single most common failure, and it's usually transient. `lab.sh
-up` already retries each VM three times.
+This is the single most common failure, and it's usually transient.
+`.\lab.ps1 up` (and `./lab.sh up` on Linux) already retries each VM three
+times.
 
 If it persists:
 
@@ -188,9 +190,9 @@ rather than precious.
 
 ## Starting over
 
-```bash
-./lab.sh destroy        # everything
-vagrant destroy -f ws01 # one VM
+```powershell
+.\lab.ps1 destroy        # every lab VM (never touches your own Kali)
+vagrant destroy -f ws01  # one VM
 ```
 
 Then rebuild. On a working setup the full cycle is about 70 minutes, most of

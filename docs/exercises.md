@@ -12,7 +12,7 @@ flowchart LR
     D --> E[5 · Alert fires]
     E --> F[6 · Evasion]
     F --> G[7 · Cleanup]
-    G -.->|lab.sh restore| A
+    G -.->|lab.ps1 restore| A
 
     style B fill:#da3633,color:#fff
     style D fill:#238636,color:#fff

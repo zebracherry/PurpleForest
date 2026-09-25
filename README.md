@@ -178,31 +178,34 @@ ansible-playbook site.yml                        # ~30-40 min
 .\lab.ps1 snapshot
 ```
 
-On a Linux host, `./lab.sh` does steps 3 and 5; install Vagrant and the
-utility with your package manager first.
-
 ### Why two machines?
 
-Vagrant drives VMware Workstation directly, so it has to run on the host — a
-guest can't create sibling VMs. Ansible has no supported Windows control
-node, so it runs from Kali, which is already on the lab network. Two
-commands, one honest boundary.
+Vagrant drives VMware Workstation directly, so it has to run on the **Windows
+host** — a guest can't create sibling VMs. Ansible has no supported Windows
+control node, so it runs from **Kali**, which is already on the lab network.
+Two places, one honest boundary: `lab.ps1` on the host builds and snapshots
+the VMs, Ansible in Kali configures them.
 
 ```mermaid
 sequenceDiagram
-    participant H as Host
+    participant H as Windows host (PowerShell)
     participant V as VMware Workstation
     participant K as KALI
     participant L as DC01 / WS01 / SIEM01
 
-    H->>V: ./lab.sh up
-    V-->>K: boot (Ansible installed automatically)
+    H->>V: .\lab.ps1 setup
+    H->>V: .\lab.ps1 up
     V-->>L: boot
+    V-->>K: boot, or attach your existing Kali to the lab network
     Note over K,L: switch to the Kali console
+    K->>K: sudo scripts/bootstrap-kali.sh (existing Kali only)
     K->>L: ansible-playbook site.yml
     L-->>K: forest built, telemetry flowing
-    H->>V: ./lab.sh snapshot
+    H->>V: .\lab.ps1 snapshot
 ```
+
+On a Linux host, swap `.\lab.ps1` for `./lab.sh` (which has no `setup` —
+install Vagrant and the utility with your package manager first).
 
 ---
 
@@ -210,8 +213,8 @@ sequenceDiagram
 
 Windows 10 is the default — it boots with no firmware prerequisites.
 
-```bash
-LAB_WS_OS=win11 ./lab.sh up      # opt into Windows 11
+```powershell
+$env:LAB_WS_OS = 'win11'; .\lab.ps1 up ws01    # opt into Windows 11
 ```
 
 Windows 11 needs TPM 2.0 and Secure Boot, and attaching the vTPM forces

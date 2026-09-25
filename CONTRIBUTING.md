@@ -67,9 +67,13 @@ Elastic or Splunk instead of Graylog.
 
 Test from a genuinely clean state, not from your working lab:
 
+```powershell
+# Windows host
+.\lab.ps1 destroy
+.\lab.ps1 up
+```
+
 ```bash
-./lab.sh destroy
-./lab.sh up
 # from KALI
 ansible-playbook site.yml -e misconfig_your_thing=true
 ```

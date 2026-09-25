@@ -7,9 +7,11 @@ exercise series depends on the OS version.
 Windows 11 works too, but it costs you some setup and one real trade-off.
 Read this before switching.
 
-```bash
-LAB_WS_OS=win11 ./lab.sh up ws01
+```powershell
+$env:LAB_WS_OS = 'win11'; .\lab.ps1 up ws01
 ```
+
+On a Linux host: `LAB_WS_OS=win11 ./lab.sh up ws01`.
 
 ---
 

@@ -98,15 +98,14 @@ Order matters. Each stage depends on the last.
 
 ```mermaid
 flowchart TD
-    A[lab.sh check<br/><i>tooling</i>] --> B[lab.sh boxes<br/><i>provider coverage</i>]
-    B --> C[lab.sh up<br/><i>4 VMs created</i>]
+    A[lab.ps1 setup<br/><i>tooling, drive, Kali choice</i>] --> C[lab.ps1 up<br/><i>VMs created</i>]
     C --> D[graylog role<br/><i>SIEM listening first</i>]
     D --> E[dc role<br/><i>forest + BadBlood + audit policy</i>]
     E --> F[workstation role<br/><i>domain join</i>]
     F --> G[telemetry role<br/><i>Sysmon + Vector</i>]
-    G --> H[lab.sh snapshot<br/><i>baseline</i>]
+    G --> H[lab.ps1 snapshot<br/><i>baseline</i>]
     H --> I{Run an exercise}
-    I --> J[lab.sh restore]
+    I --> J[lab.ps1 restore]
     J --> I
 
     style D fill:#238636,color:#fff
