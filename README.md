@@ -142,6 +142,7 @@ a Broadcom login, so it's the one thing the script can't fetch for you.
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 irm https://raw.githubusercontent.com/zebracherry/PurpleForest/main/lab.ps1 -OutFile lab.ps1
+Unblock-File .\lab.ps1       # clears the downloaded-from-internet mark
 .\lab.ps1 setup
 ```
 
