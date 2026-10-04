@@ -129,32 +129,65 @@
 # --------------------------------------------------------- misconfigs ------
 # Each block maps to one exercise. Off by default -- see group_vars/all.yml.
 
-- name: Misconfig - Kerberoastable service account
+- name: Misconfig - Kerberoastable service accounts
   when: misconfig_kerberoast | bool
   block:
-    - name: Create the SQL service account with a weak password
+    # Two accounts, and the difference between them is the whole exercise.
+    #
+    # A patched Server 2022 KDC will not hand out an RC4 service ticket for an
+    # account that has an AES key, whatever the client asks for. It encrypts
+    # the ticket with the strongest key the account holds. So on a default
+    # modern domain the classic attack does not fail because the password is
+    # strong -- it fails with KDC_ERR_ETYPE_NOSUPP before any ticket exists,
+    # because Impacket asks for RC4 and nothing on the other side will agree.
+    #
+    # msDS-SupportedEncryptionTypes is what decides it:
+    #   unset  -> no RC4 in the effective default; an RC4-only client gets
+    #             KDC_ERR_ETYPE_NOSUPP and no hash at all
+    #   0x18   -> AES128+AES256. Roastable only with an AES-negotiated TGT,
+    #             giving $krb5tgs$18$ -- hashcat -m 19700, ~2.1 kH/s here
+    #   0x1C   -> RC4+AES. Still returns AES256: the KDC prefers the
+    #             strongest service key, so this does NOT restore the old
+    #             attack. A trap worth knowing about.
+    #   0x4    -> RC4 only. The real legacy misconfiguration, and the only
+    #             one that yields $krb5tgs$23$ -- hashcat -m 13100, ~1.5 MH/s,
+    #             roughly 700x faster than the AES path.
+
+    # Summer2024 is not in rockyou, so a straight wordlist run misses it and
+    # the reader has to reach for a hybrid attack. AES does not make a weak
+    # password safe; it only makes guessing it ~700x more expensive.
+    - name: Create the SQL service account (AES only, modern default)
       microsoft.ad.user:
         name: svc_mssql
         firstname: SQL
         surname: Service
         password: "Summer2024"
         password_never_expires: true
+        description: "MSSQL service account"
         path: "OU=LabServiceAccounts,{{ domain_dn }}"
         state: present
 
-    # Two accounts on purpose. svc_backup_sql's password is in rockyou, so it
-    # falls to a straight wordlist run; svc_mssql's is not, and only a hybrid
-    # attack gets it. One roastable account would teach half the lesson.
-    - name: Create the SQL Agent account with a rockyou-grade password
+    - name: Pin svc_mssql to AES128 + AES256 (0x18)
+      ansible.windows.win_shell: |
+        Set-ADUser -Identity svc_mssql -Replace @{'msDS-SupportedEncryptionTypes'=24}
+      changed_when: true
+
+    # Password123 is in rockyou, so this one falls to a plain wordlist run.
+    - name: Create the SQL Agent account (pinned to RC4, as a legacy app would)
       microsoft.ad.user:
         name: svc_backup_sql
         firstname: Backup
         surname: SQLAgent
         password: "Password123"
         password_never_expires: true
-        description: "SQL Agent backup service"
+        description: "SQL Agent backup service - legacy, requires RC4"
         path: "OU=LabServiceAccounts,{{ domain_dn }}"
         state: present
+
+    - name: Pin svc_backup_sql to RC4 only (0x4)
+      ansible.windows.win_shell: |
+        Set-ADUser -Identity svc_backup_sql -Replace @{'msDS-SupportedEncryptionTypes'=4}
+      changed_when: true
 
     - name: Register SPNs on both service accounts
       ansible.windows.win_shell: |
