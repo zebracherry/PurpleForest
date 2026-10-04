@@ -42,7 +42,7 @@ Use a regex term instead. This is the form every query below relies on:
 NOT ServiceName:/.*\$/
 ```
 
-Result: 133 of 137 events, excluding 4 computer-account requests.
+Result: 153 of 159 events, excluding 6 computer-account requests.
 
 ---
 
@@ -124,14 +124,17 @@ event_id:4769 AND TicketOptions:"0x40810010"
 event_id:4769 AND TicketOptions:"0x40810000"
 ```
 
-**Result: 4 events** — ws01 and the DC itself.
+**Result: 26 events** — and only 4 of those are legitimate. The other 22 are
+the on-host PowerShell evasion in notes.md, which is an attack carrying the
+native value.
 
 Impacket sets ticket options Windows does not natively send, which makes this
 look like a perfect discriminator. It is not. A legitimate request from the DC
 carried `0x60810010`, which also has the `0x10` bit set, so the bit itself is
-not attacker-only — only the exact value happened to be clean, across a
-seven-day window on a lab with almost no Kerberos traffic. That is far too
-little evidence to alert on.
+not attacker-only. Worse, the native value is what the evasion produces, so
+the fingerprint is missing from exactly the attack you most want to catch.
+Across a seven-day window on a lab with almost no genuine Kerberos traffic,
+that is far too little evidence to alert on.
 
 Use it to raise confidence on an alert another rule already raised, and to
 pivot during triage. Never as a standalone detection.

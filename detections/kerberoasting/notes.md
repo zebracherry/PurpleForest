@@ -48,7 +48,7 @@ or a gMSA, where the password is 240 bytes and managed.
 
 ## False positives
 
-Honest caveat first: **this lab produced 137 `4769` events in seven days.** A
+Honest caveat first: **this lab produced 159 `4769` events in seven days, 134 of them mine.** A
 real domain produces millions a day, and `4769` is usually one of the top
 events by volume in the whole estate. A zero false-positive rate here means
 almost nothing about your environment. Baseline before you deploy any of this.
