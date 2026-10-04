@@ -77,6 +77,79 @@ usually means the DC itself didn't build.
 
 ---
 
+## Kali loses its internet, or can't reach the lab
+
+Symptom: DNS stops working on Kali and nothing else looks wrong.
+
+```
+$ ping -c2 google.com
+ping: google.com: Temporary failure in name resolution
+```
+
+Check which NIC holds which address, and compare the MACs against the VM's
+own configuration:
+
+```bash
+ip -brief addr
+ip route
+for i in /sys/class/net/eth*; do echo "$(basename $i) $(cat $i/address)"; done
+```
+
+Two symptoms together point at one cause: the lab address `10.10.10.50` sits
+on a NIC, there is **no default route at all**, and `/etc/resolv.conf` names a
+nameserver nothing can route to.
+
+What happened is that the guest's interface names swapped. Kali's NAT adapter
+is an `e1000` and the lab adapter `lab.ps1` attaches is a `vmxnet3`, and which
+one gets `eth0` is decided by driver probe order, not by the order they appear
+in the `.vmx`. Bootstrap versions before the MAC-binding fix created the lab's
+NetworkManager profile with `ifname eth1`. After a reboot that flipped the
+names, the profile applied the lab's static address to the **NAT** adapter —
+which loses you the internet route and the lab in the same move, while looking
+only like a DNS problem.
+
+Confirm it by matching MACs. On the Windows host:
+
+```powershell
+Select-String -Path 'D:\Virtual Machines\<your kali>\<your kali>.vmx' -Pattern 'ethernet\d\.(generatedAddress|connectionType|vnet)\b'
+```
+
+`ethernet0` is the NAT adapter and `ethernet1` is the one on the lab vmnet. If
+the guest's `eth0` carries `ethernet1`'s MAC, the names are swapped.
+
+The fix is to re-run the bootstrap, which now binds both profiles to MAC
+addresses and repairs this state in place:
+
+```bash
+sudo ~/PurpleForest/scripts/bootstrap-kali.sh
+```
+
+It prints the NIC and MAC it chose. Afterwards you want the lab address and a
+default route on *different* interfaces:
+
+```
+eth0             UP             10.10.10.50/24
+eth1             UP             192.168.4.194/24
+default via 192.168.4.2 dev eth1 proto dhcp
+```
+
+To repair it by hand instead, bind the profile to the lab NIC's MAC and give
+the other NIC DHCP back:
+
+```bash
+LAB_MAC=$(cat /sys/class/net/eth0/address)   # whichever NIC is on the lab vmnet
+sudo nmcli con modify purpleforest-lab connection.interface-name "" \
+     802-3-ethernet.mac-address "$LAB_MAC" ipv4.never-default yes
+sudo nmcli con add type ethernet con-name purpleforest-uplink \
+     802-3-ethernet.mac-address "$(cat /sys/class/net/eth1/address)" ipv4.method auto
+sudo nmcli con up purpleforest-lab && sudo nmcli con up purpleforest-uplink
+```
+
+Never give the lab profile a gateway. `ipv4.never-default yes` is what keeps
+the isolated lab network out of your default route.
+
+---
+
 ## No events arriving in Graylog
 
 Work down the pipeline, don't guess.
