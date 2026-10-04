@@ -257,7 +257,13 @@ then LOLbins, Linux, Entra ID, AWS, and Kubernetes.
 |---|---|---|
 | Graylog | http://10.10.10.30:9000 | `admin` / see `ansible/group_vars/all.yml` |
 | Domain | `corp.lab` | `CORP\Administrator` / see group_vars |
+| Attacker foothold | `corp.lab` | `CORP\jdoe` / see group_vars |
 | Any VM | — | `vagrant` / `vagrant` |
+
+`jdoe` is a plain domain user with no rights beyond Domain Users. Most
+exercises begin after initial access, so they need one ordinary credential to
+start from; BadBlood's thousands of users all have random passwords, so none
+of them can play that part.
 
 Passwords are deliberately weak — several exercises depend on weak
 credentials existing. Change them in `group_vars/all.yml` if you like, but

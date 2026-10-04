@@ -43,6 +43,36 @@ transforms:
       .lab_domain  = "{{ domain_name }}"
       .ingested_at = now()
 
+      # Windows puts everything a detection actually needs -- the service
+      # name, the encryption type, the target account -- inside the event's
+      # EventData section, which arrives here as one nested object. Graylog's
+      # GELF input has no nested fields, so it collapses the whole thing into
+      # a single JSON string and a query for an encryption type has to
+      # substring-match that blob: slow, and wrong, because it matches the
+      # value in any field. Flatten it to real top-level fields instead.
+      #
+      # The keys keep Microsoft's own names -- TargetUserName,
+      # TicketEncryptionType, ServiceName -- which is what Sigma rules are
+      # written against, so a rule maps to a Graylog field one to one.
+      # Existing fields win on a collision, so this can never clobber
+      # event_id, channel or the GELF keys below.
+      #
+      # The source hands EventData over as a map; older builds give a JSON
+      # string instead, so accept either.
+      event_fields = {}
+      if is_object(.event_data) {
+        event_fields = object!(.event_data)
+      } else if is_string(.event_data) {
+        decoded, err = parse_json(string!(.event_data))
+        if err == null && is_object(decoded) {
+          event_fields = object!(decoded)
+        }
+      }
+      if length(event_fields) > 0 {
+        . = merge(event_fields, .)
+        del(.event_data)          # flattened above; keeping it doubles the index
+      }
+
       # Graylog's GELF input wants these field names.
       .host         = "{{ inventory_hostname }}"
       .short_message = to_string(.message) ?? "windows event"

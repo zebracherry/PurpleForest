@@ -110,6 +110,22 @@
         content: "done"
         dest: C:\lab\.badblood_done
 
+# ----------------------------------------------------------- foothold ------
+# The attacker's starting credential. Not a misconfiguration: an ordinary
+# domain user is not a finding, it is the normal state of every network.
+# The exercises need one with a known password, which BadBlood cannot give.
+
+- name: Create the attacker foothold user
+  microsoft.ad.user:
+    name: "{{ foothold_user }}"
+    firstname: John
+    surname: Doe
+    password: "{{ foothold_password }}"
+    password_never_expires: true
+    description: "Sales - standard user"
+    path: "OU=LabUsers,{{ domain_dn }}"
+    state: present
+
 # --------------------------------------------------------- misconfigs ------
 # Each block maps to one exercise. Off by default -- see group_vars/all.yml.
 
@@ -126,9 +142,24 @@
         path: "OU=LabServiceAccounts,{{ domain_dn }}"
         state: present
 
-    - name: Register an SPN on it
+    # Two accounts on purpose. svc_backup_sql's password is in rockyou, so it
+    # falls to a straight wordlist run; svc_mssql's is not, and only a hybrid
+    # attack gets it. One roastable account would teach half the lesson.
+    - name: Create the SQL Agent account with a rockyou-grade password
+      microsoft.ad.user:
+        name: svc_backup_sql
+        firstname: Backup
+        surname: SQLAgent
+        password: "Password123"
+        password_never_expires: true
+        description: "SQL Agent backup service"
+        path: "OU=LabServiceAccounts,{{ domain_dn }}"
+        state: present
+
+    - name: Register SPNs on both service accounts
       ansible.windows.win_shell: |
         setspn -S MSSQLSvc/sql01.{{ domain_name }}:1433 {{ domain_netbios }}\svc_mssql
+        setspn -S MSSQLSvc/sql02.{{ domain_name }}:1433 {{ domain_netbios }}\svc_backup_sql
       register: dc_spn
       changed_when: "'Updated object' in dc_spn.stdout"
       failed_when: dc_spn.rc != 0 and 'Duplicate SPN' not in dc_spn.stdout

@@ -22,6 +22,15 @@ graylog_admin_password: "L4bGraylog!"
 opensearch_heap: "2g"
 graylog_retention_days: 30
 
+# ------------------------------------------------------- lab foothold ------
+# Almost every exercise starts after initial access: kerberoasting, spraying
+# and ACL abuse all assume the attacker already holds one ordinary domain
+# credential. BadBlood's thousands of users have random passwords, so none of
+# them can play that part. This account is the foothold, and it is a plain
+# domain user with no group memberships and no rights beyond Domain Users.
+foothold_user:     jdoe
+foothold_password: "Lab0ratory!"
+
 # ------------------------------------------------------- misconfig flags ---
 # Every exercise depends on one of these. Leave them off by default so the
 # domain is clean, and enable only what the exercise you are running needs:
