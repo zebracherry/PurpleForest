@@ -1,0 +1,163 @@
+# Kerberoasting (MITRE ATT&CK T1558.003) -- PurpleForest exercise 3.
+#
+# Three rules, because no single one of them survives contact with a
+# competent attacker on a modern domain:
+#
+#   1. RC4 service ticket issued   -- high precision, poor recall. Blind to
+#      AES roasting, which is what a default Server 2022 KDC hands out.
+#   2. Burst of ETYPE_NOSUPP       -- catches the attacker whose tool asked
+#      for RC4 and got nothing, which is Impacket's default on a patched DC.
+#      Blind to anyone who asks for AES instead.
+#   3. One account, many SPNs      -- the only one that is etype-agnostic,
+#      and the only one of the four that still fires against the on-host
+#      PowerShell method. Verified: 20 distinct SPNs, no refusals, native
+#      ticket options, and rules 1-3 all silent.
+#
+# Measured in the lab against a domain BadBlood seeded with 52 SPN accounts.
+# See notes.md for false positives, thresholds and evasion.
+
+title: Kerberoasting - RC4 Service Ticket Issued
+id: f8a03bad-27e2-4296-9f10-ad69be4ea2f6
+status: experimental
+description: |
+  A Kerberos service ticket was issued encrypted with RC4-HMAC (etype 0x17)
+  for a user account holding an SPN. A current Windows KDC encrypts the
+  ticket with the strongest key the service account holds, so RC4 appears
+  only when the account is explicitly pinned to RC4 via
+  msDS-SupportedEncryptionTypes. That is a legacy configuration, and it is
+  the one that makes offline cracking roughly 700x cheaper.
+references:
+  - https://attack.mitre.org/techniques/T1558/003/
+  - https://learn.microsoft.com/en-us/windows-server/security/kerberos/kerberos-authentication-overview
+author: noob2root - PurpleForest
+date: 2026/10/04
+tags:
+  - attack.credential_access
+  - attack.t1558.003
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4769
+    TicketEncryptionType: '0x17'
+    Status: '0x0'
+  filter_computer_account:
+    ServiceName|endswith: '$'
+  filter_krbtgt:
+    ServiceName: 'krbtgt'
+  condition: selection and not 1 of filter_*
+falsepositives:
+  - Legacy applications whose service account is pinned to RC4 on purpose.
+    Baseline first and allowlist by ServiceName, never by requesting account.
+  - Trusts or appliances that negotiate RC4.
+level: high
+---
+title: Kerberoasting - Service Ticket Request Refused For Encryption Type
+id: eb977b20-57d4-4f91-bec8-fe4a76ed15c4
+status: experimental
+description: |
+  A service ticket request was refused with KDC_ERR_ETYPE_NOSUPP (0xe) and no
+  ticket was issued (TicketEncryptionType 0xffffffff). Impacket's
+  GetUserSPNs converts the supplied password to an NT hash so the TGT session
+  key is RC4, which makes every TGS request ask for RC4. On a patched Server
+  2022 KDC that request is refused for any account not pinned to RC4, so the
+  attack leaves a trail of failures and no hashes. One of these is noise;
+  dozens in a second is a roasting attempt.
+references:
+  - https://attack.mitre.org/techniques/T1558/003/
+author: noob2root - PurpleForest
+date: 2026/10/04
+tags:
+  - attack.credential_access
+  - attack.t1558.003
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4769
+    Status: '0xe'
+  condition: selection
+falsepositives:
+  - Genuinely misconfigured clients and old appliances. These repeat against
+    the same one or two SPNs, where an attacker sweeps many.
+level: low
+---
+title: Kerberoasting - Burst Of Refused Service Ticket Requests
+id: 1301afa3-bec6-4018-8487-798fd65956f4
+status: experimental
+description: |
+  Twenty or more service ticket requests refused for encryption type, from a
+  single account inside a minute. Measured in the lab, one default
+  GetUserSPNs -request run produced 52 refusals in a single second against a
+  baseline of a few 4769 events per hour.
+correlation:
+  type: event_count
+  rules:
+    - eb977b20-57d4-4f91-bec8-fe4a76ed15c4
+  group-by:
+    - TargetUserName
+  timespan: 1m
+  condition:
+    gte: 20
+falsepositives:
+  - A broken application retrying in a loop. Check whether the ServiceName
+    values are one repeated SPN or many distinct ones.
+level: high
+---
+title: Kerberoasting - Service Ticket Requested
+id: 35ed5589-161a-41af-bd70-1e433755c778
+status: experimental
+description: |
+  Base rule. A service ticket was requested for an account-based SPN. Far too
+  common to alert on by itself; it exists to be counted by the correlation
+  rule below.
+references:
+  - https://attack.mitre.org/techniques/T1558/003/
+author: noob2root - PurpleForest
+date: 2026/10/04
+tags:
+  - attack.credential_access
+  - attack.t1558.003
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4769
+  filter_computer_account:
+    ServiceName|endswith: '$'
+  filter_krbtgt:
+    ServiceName: 'krbtgt'
+  condition: selection and not 1 of filter_*
+falsepositives:
+  - Everything. Do not alert on this rule directly.
+level: informational
+---
+title: Kerberoasting - One Account Requesting Many Distinct SPNs
+id: 33f12113-b8a6-415f-97cb-d62a87983750
+status: experimental
+description: |
+  A single account requested service tickets for 15 or more distinct SPNs
+  within five minutes. This is the behaviour of the technique rather than an
+  artefact of one tool, so unlike the RC4 rule it still fires when the
+  attacker takes AES tickets, and unlike the fingerprint it still fires when
+  the requests come from a domain-joined host using only built-in Windows
+  APIs. In the lab a roasting run touched 56 distinct SPNs while the only
+  other principal on the domain touched 2.
+correlation:
+  type: value_count
+  rules:
+    - 35ed5589-161a-41af-bd70-1e433755c778
+  group-by:
+    - TargetUserName
+  timespan: 5m
+  condition:
+    gte: 15
+    field: ServiceName
+falsepositives:
+  - Vulnerability scanners and asset inventory tools authenticating broadly.
+    Allowlist those service accounts explicitly.
+  - Backup and monitoring agents that touch many services on a schedule.
+level: high
