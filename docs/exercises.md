@@ -40,7 +40,7 @@ The core series.
 |---|---|---|---|---|
 | 1 | Domain enumeration | — | ADReaper, SharpHound, `ldapsearch` | 4662, LDAP query volume |
 | 2 | AS-REP roasting | `misconfig_asreproast` | Rubeus, `GetNPUsers.py` | 4768 (enc type 23) |
-| 3 | Kerberoasting | `misconfig_kerberoast` | Rubeus, `GetUserSPNs.py` | 4769 (RC4 requests) |
+| 3 | **Kerberoasting** ✅ [detections](../detections/kerberoasting/) | `misconfig_kerberoast` | `GetUserSPNs.py`, built-in Windows APIs | 4769 etype, `Status 0xe` bursts, SPN cardinality |
 | 4 | Password spraying | `misconfig_weak_spray_target` | Kerbrute, DomainPasswordSpray | 4625 volume, 4771 |
 | 5 | Credentials in AD attributes | `misconfig_password_in_desc` | PowerView, `ldapsearch` | 4662 read patterns |
 | 6 | LLMNR/NBT-NS poisoning | `misconfig_smb_signing_off` | Responder, `ntlmrelayx` | Sysmon 22, 4624 type 3 |
@@ -53,6 +53,14 @@ The core series.
 | 13 | Persistence | — | AdminSDHolder, SharpGPOAbuse | 5136, 4739, service installs |
 
 ---
+
+> **A note from exercise 3.** The telemetry column above was written
+> assuming the 2018 version of these attacks. On a patched Server 2022 KDC,
+> `GetUserSPNs` asks for RC4, gets `KDC_ERR_ETYPE_NOSUPP` on every account
+> that holds an AES key, and produces no hash at all. "4769 (RC4 requests)"
+> is therefore the wrong thing to look for by default — the refusals and the
+> distinct-SPN count are what actually detect it. Expect the same for AS-REP
+> roasting, which makes the same assumption.
 
 ## Track 2 — Living off the land
 
