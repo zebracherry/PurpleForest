@@ -22,3 +22,6 @@ Thumbs.db
 # PurpleForest host choices (drive, Kali mode)
 .lab-config.json
 .vagrant.d/
+
+# Editor
+.obsidian/
