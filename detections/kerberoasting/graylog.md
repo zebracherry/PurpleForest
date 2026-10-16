@@ -102,15 +102,28 @@ takes AES tickets or uses only built-in Windows APIs.
 | Field | Value |
 |---|---|
 | Condition type | Aggregation |
-| Search query | `event_id:4769 AND Status:"0x0" AND NOT ServiceName:/.*\$/` |
+| Search query | `event_id:4769 AND NOT ServiceName:/.*\$/` |
 | Search within | 5 minutes |
 | Execute every | 1 minute |
 | Group by | `TargetUserName` |
 | Aggregation | `card(ServiceName)` |
 | Condition | `card(ServiceName)` **>** `15` |
 
-Lab measurement: the roasting account touched **56 distinct SPNs**; the only
-other principal on the domain touched **2**. That separation is the detection.
+Deliberately **no `Status` filter.** An earlier version had `Status:"0x0"` on
+the reasoning that a detection should care about tickets actually issued, and
+that is backwards here: the Impacket sweep was refused 104 times and issued
+nothing, so a success-only rule scores it at two distinct SPNs and never fires
+on the loudest event of the week. Counting every request, refused or not, is
+what lets this rule see both the sweep and the on-host evasion. It also makes
+the Graylog rule agree with `sigma.yml`, whose base rule counts all `4769`
+events regardless of status.
+
+`TargetUserName` on a `4769` carries the UPN form, so rows group as
+`jdoe@CORP.LAB` rather than `jdoe`. Group by it anyway; just do not expect the
+bare username when writing an allowlist.
+
+Lab measurement: the roasting account touched **74 distinct SPNs**; the only
+other principal on the domain touched **1**. That separation is the detection.
 
 ## The tool fingerprint, and why it is not a rule
 

@@ -144,8 +144,8 @@ description: |
   artefact of one tool, so unlike the RC4 rule it still fires when the
   attacker takes AES tickets, and unlike the fingerprint it still fires when
   the requests come from a domain-joined host using only built-in Windows
-  APIs. In the lab a roasting run touched 56 distinct SPNs while the only
-  other principal on the domain touched 2.
+  APIs. In the lab a roasting run touched 74 distinct SPNs while the only
+  other principal on the domain touched 1.
 correlation:
   type: value_count
   rules:

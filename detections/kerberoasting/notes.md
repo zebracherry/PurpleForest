@@ -38,10 +38,10 @@ Same lab, same CPU (i7-11800H, 4 cores to the VM, PoCL on CPU):
 
 | | etype | hashcat mode | speed | time to crack |
 |---|---|---|---|---|
-| `svc_backup_sql` / `Password123` | 23 (RC4) | 13100 | **1,490,800 H/s** | instant, plain rockyou |
-| `svc_mssql` / `Summer2024` | 18 (AES256) | 19700 | **2,099 H/s** | 20s, hybrid `base.txt ?d?d?d?d` |
+| `svc_backup_sql` / `Password123` | 23 (RC4) | 13100 | **689,800 H/s** | instant, plain rockyou |
+| `svc_mssql` / `Summer2024` | 18 (AES256) | 19700 | **2,005 H/s** | 21s, hybrid `base.txt ?d?d?d?d` |
 
-**AES costs the attacker roughly 710x.** It does not save a weak password.
+**AES costs the attacker roughly 344x.** It does not save a weak password.
 Both of these fell in under a minute. AES is worth enforcing, but it buys time
 rather than safety, and the real fix is password length on service accounts —
 or a gMSA, where the password is 240 bytes and managed.
@@ -66,8 +66,8 @@ Rule 1 is high precision and poor recall. Rule 4 is the opposite. Ship both.
 
 Rule 3 is set to 20 refusals per account per minute. Measured burst: **52 in a
 single second**, twice. Rule 4 is set to 15 distinct SPNs per account per five
-minutes. Measured: the roasting account touched **56 distinct SPNs**, while the
-only other principal on the domain touched **2**.
+minutes. Measured: the roasting account touched **74 distinct SPNs**, while the
+only other principal on the domain touched **1**.
 
 Both thresholds have enormous headroom in a lab and are probably wrong for
 you. Run the rule-4 query as a search over a week, grouped by
@@ -79,9 +79,9 @@ rather than above the lab's.
 ### What beats rule 1
 
 Take the AES ticket. `$krb5tgs$18$` never has `TicketEncryptionType: 0x17`, so
-the RC4 rule is blind to it. **Cost to the attacker:** ~710x slower cracking,
+the RC4 rule is blind to it. **Cost to the attacker:** ~344x slower cracking,
 which against a genuinely strong service-account password is the difference
-between minutes and never. Against `Summer2024` it cost 20 seconds.
+between minutes and never. Against `Summer2024` it cost 21 seconds.
 
 ### What beats rules 2 and 3
 
@@ -131,7 +131,7 @@ The on-host PowerShell run, measured end to end:
 | Source | Kali, `10.10.10.50` | domain-joined ws01, `10.10.10.20` |
 | Rule 1 (RC4) | fires | **0 matches** |
 | Rules 2+3 (NOSUPP) | fires | **0 matches** |
-| Rule 4 (SPN volume) | 56 distinct SPNs, fires | **20 distinct SPNs, fires** |
+| Rule 4 (SPN volume) | 54 distinct SPNs, fires | **20 distinct SPNs, fires** |
 
 Three of the four rules go blind. By etype, ticket options and source host the
 second run is a normal user opening file shares.
@@ -156,6 +156,6 @@ In rough order of how much they buy you:
 3. **Remove stale SPNs.** BadBlood gave this domain 52 of them; a real domain
    accumulates them the same way. Every one is an offer.
 4. **Drop RC4.** Set `msDS-SupportedEncryptionTypes` to `0x18` on service
-   accounts, then remove RC4 domain-wide once nothing breaks. Worth 710x.
+   accounts, then remove RC4 domain-wide once nothing breaks. Worth 344x.
 5. **Audit who can read SPNs.** Any authenticated user can enumerate them by
    default, which is what makes step one of the attack free.
